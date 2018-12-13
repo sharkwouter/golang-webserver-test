@@ -1,30 +1,74 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
+	"log"
 	"net/http"
+	"os"
+	"strings"
 	"text/template"
 )
 
-type Inventory struct {
-	Material string
-	Count int
+const(
+	configExtension = ".cfg"
+	configFile = "default" + configExtension
+)
+
+func MacaddressTofilename(mac string) string{
+	if mac != "" {
+		return strings.Replace(strings.ToUpper(mac), ":", "", -1) + configExtension
+	}
+	return ""
 }
 
-func main() {
-	thing := Inventory{
-		Material: "wood",
-		Count: 4,
+func GetMacaddress(ip string) string{
+	file, err := os.Open("/proc/net/arp")
+	if err != nil {
+		return ""
 	}
+	defer file.Close()
 
-	tmpl, err := template.ParseFiles("niks.template")
+	lines := bufio.NewScanner(file)
+	for lines.Scan() {
+		fields := strings.Fields(lines.Text())
+		if fields[0] == ip {
+			return fields[3]
+		}
+	}
+	return ""
+}
+
+func GenerateConfig(file string) (*template.Template, error) {
+	fileName := file
+	fileExists := false
+	if file !="" {
+		_, err := os.Stat(fileName)
+		if err == nil {
+			fileExists = true
+			fmt.Println("something happened")
+		}
+	}
+	if fileExists {
+		return template.ParseFiles(configFile, fileName)
+	}
+	return template.ParseFiles(configFile)
+}
+
+func handleRequest(w http.ResponseWriter, r *http.Request) {
+	ip := strings.Split(r.RemoteAddr, ":")[0]
+	mac := GetMacaddress(ip)
+	file := MacaddressTofilename(mac)
+
+	tmpl, err := GenerateConfig(file)
 	if err != nil{
 		fmt.Println(err.Error())
 	}
+	tmpl.Execute(w, nil)
+}
 
-	 http.HandleFunc("/test", func(w http.ResponseWriter, r *http.Request) {
-		 tmpl.Execute(w, thing)
-	 })
+func main() {
+	 http.HandleFunc("/test", handleRequest)
 
-	http.ListenAndServe(":8080", nil)
+	log.Fatal(http.ListenAndServe(":8080", nil))
 }
