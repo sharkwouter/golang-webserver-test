@@ -60,9 +60,16 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 	mac := GetMacaddress(ip)
 	file := MacaddressTofilename(mac)
 
-	tmpl, err := GenerateConfig(file)
+
+	tmpl, err := template.ParseFiles(configFile)
 	if err != nil{
 		fmt.Println(err.Error())
+	}
+	tmpl2, err := template.ParseFiles(file)
+	if err != nil {
+		tmpl.New("device").Parse("")
+	} else {
+		tmpl.New("device").Parse(tmpl2.Root.String())
 	}
 	tmpl.Execute(w, nil)
 }
